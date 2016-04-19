@@ -24,11 +24,11 @@ if __name__ == '__main__':
     data = pd.read_csv(argv[1])
     data = data[~data["PTS"].isin(months)].rename(
         columns = {
-            'Visitor/Neutral': 'Visitor',
-            'Home/Neutral': 'Home',
-            'PTS': 'VisitorPTS',
-            'PTS.1': 'HomePTS',
-            'Start (ET)': 'Start'
+            "Visitor/Neutral": "Visitor",
+            "Home/Neutral": "Home",
+            "PTS": "VisitorPTS",
+            "PTS.1": "HomePTS",
+            "Start (ET)": "Start"
         }
     )[["Date", "Start", "Visitor", "VisitorPTS", "Home", "HomePTS"]]
 
