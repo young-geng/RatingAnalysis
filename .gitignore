@@ -63,3 +63,6 @@ target/
 
 # Experimental code
 experimental/
+
+# OSX 
+.DS_Store
