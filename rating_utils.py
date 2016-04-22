@@ -16,7 +16,6 @@ class RatingAlgorithm(object):
     def __init__(self):
         raise NotImplementedError()
 
-
     def fit(self, data, teams):
         raise NotImplementedError()
 
@@ -30,7 +29,6 @@ class RatingAlgorithm(object):
                 and self.predict(data['Home'][i], data['Visitor'][i]) < 0.5):
                 n_errors += 1
         return n_errors / len(data)
-
 
     @property
     def ratings(self):
