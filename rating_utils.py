@@ -2,6 +2,7 @@ from __future__ import division
 
 import numpy as np
 import pandas as pd
+import scipy.stats
 
 
 # Basic utilities.
@@ -111,44 +112,29 @@ class MasseyMethod(RatingAlgorithm):
             p[i, 0] = self._count_score(self._team_names[i])
 
         self._ratings = np.dot(np.linalg.inv(M), p).flatten()
-        self._optimize_logistic_parameter()
+        self._estimate_variance()
 
     @property
     def ratings(self):
         return self._ratings
 
-    def _optimize_logistic_parameter(self):
-        x = []
-        p = []
 
-        matches = self._count_match()
-        for i in xrange(self._n_teams):
-            for j in xrange(i):
-                w1 = matches[i, j]
-                w2 = matches[j, i]
-                if w1 + w2 == 0:
-                    # Haven't had a match in the training set
-                    continue
-                x.append(self._ratings[i] - self._ratings[j])
-                p.append(self._correct_probability(w1 / (w1 + w2)))
+    def _estimate_variance(self):
+        s = []
+        for i in xrange(len(self._data)):
+            t1 = self._team_idx[self._data['Home'][i]]
+            t2 = self._team_idx[self._data['Visitor'][i]]
+            score_diff = self._data['HomePTS'][i] - self._data['VisitorPTS'][i]
+            s.append(score_diff - (self._ratings[t1] - self._ratings[t2]))
 
-        x = np.array(x)
-        p = np.array(p)
+        s = np.array(s)
 
-        y = -np.log(1 / p - 1)
-
-
-        self._logistic_scale = np.sum(x * y) / np.sum(x * x)
-
-    @property
-    def logistic_scale(self):
-        return self._logistic_scale
-
-    def _logistic_probability(self, x):
-        return 1 / (1 + np.exp(-x * self._logistic_scale))
+        # Unbiased estimator for variance
+        self._gaussian_variance = np.sum(s ** 2) / (s.shape[0] - 1)
 
     def predict(self, team1, team2):
-        return self._logistic_probability(
-            self._ratings[self._team_idx[team1]]
-            - self._ratings[self._team_idx[team2]]
-        )
+        rating_diff = (self._ratings[self._team_idx[team1]]
+            - self._ratings[self._team_idx[team2]])
+
+        # Compute probabilty with gaussian CDF
+        return scipy.stats.norm.cdf(rating_diff, 0, self._gaussian_variance ** 0.5)
