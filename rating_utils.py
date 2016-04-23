@@ -23,13 +23,22 @@ class RatingAlgorithm(object):
     def predict(self, team1, team2):
         raise NotImplementedError()
 
-    def test_error_rate(self, data):
+    def test_accuracy(self, data):
         n_errors = 0
         for i in xrange(len(data)):
             if (data['HomePTS'][i] >= data['VisitorPTS'][i]
                 and self.predict(data['Home'][i], data['Visitor'][i]) < 0.5):
                 n_errors += 1
-        return n_errors / len(data)
+        return 1 - n_errors / len(data)
+
+    def test_cross_entropy_loss(self, data):
+        loss = 0
+        for i in xrange(len(data)):
+            if data['HomePTS'][i] >= data['VisitorPTS'][i]:
+                loss += -np.log(self.predict(data['Home'][i], data['Visitor'][i]))
+            else:
+                loss += -np.log(self.predict(data['Visitor'][i], data['Home'][i]))
+        return loss / len(data)
 
     @property
     def ratings(self):
@@ -138,3 +147,119 @@ class MasseyMethod(RatingAlgorithm):
 
         # Compute probabilty with gaussian CDF
         return scipy.stats.norm.cdf(rating_diff, 0, self._gaussian_variance ** 0.5)
+
+
+class MarkovMatchMethod(RatingAlgorithm):
+
+    def __init__(self):
+        pass
+
+    def fit(self, data, teams=None):
+
+        if teams is None:
+            teams = get_teams(data)
+
+        self._team_names = teams
+        self._data = data
+        self._n_teams = len(teams)
+
+        self._team_idx = {}
+        for i in xrange(len(teams)):
+            self._team_idx[teams[i]] = i
+
+
+        self._transition_matrix = np.zeros((self._n_teams, self._n_teams))
+
+
+        for i in xrange(len(self._data)):
+
+            if self._data['HomePTS'][i] <= self._data['VisitorPTS'][i]:
+                self._transition_matrix[
+                    self._team_idx[self._data['Home'][i]],
+                    self._team_idx[self._data['Visitor'][i]]
+                ] += 1
+
+            if self._data['HomePTS'][i] >= self._data['VisitorPTS'][i]:
+                self._transition_matrix[
+                    self._team_idx[self._data['Visitor'][i]],
+                    self._team_idx[self._data['Home'][i]]
+                ] += 1
+
+        for i in xrange(self._n_teams):
+            self._transition_matrix[i, :] /= np.sum(self._transition_matrix[i, :])
+
+        _, v = np.linalg.eig(self._transition_matrix.T)
+
+        self._ratings = np.abs(
+            np.real(v[:, 0] / np.sum(v[:, 0].flatten()))
+        ).flatten()
+
+
+    @property
+    def ratings(self):
+        return self._ratings
+
+
+    def predict(self, team1, team2):
+        t1 = self._team_idx[team1]
+        t2 = self._team_idx[team2]
+
+        return self._ratings[t1] / (self._ratings[t1] + self._ratings[t2])
+
+
+class MarkovScoreMethod(RatingAlgorithm):
+
+    def __init__(self):
+        pass
+
+    def fit(self, data, teams=None):
+
+        if teams is None:
+            teams = get_teams(data)
+
+        self._team_names = teams
+        self._data = data
+        self._n_teams = len(teams)
+
+        self._team_idx = {}
+        for i in xrange(len(teams)):
+            self._team_idx[teams[i]] = i
+
+
+        self._transition_matrix = np.zeros((self._n_teams, self._n_teams))
+
+
+        for i in xrange(len(self._data)):
+
+            if self._data['HomePTS'][i] <= self._data['VisitorPTS'][i]:
+                self._transition_matrix[
+                    self._team_idx[self._data['Home'][i]],
+                    self._team_idx[self._data['Visitor'][i]]
+                ] += self._data['VisitorPTS'][i] - self._data['HomePTS'][i]
+
+            if self._data['HomePTS'][i] >= self._data['VisitorPTS'][i]:
+                self._transition_matrix[
+                    self._team_idx[self._data['Visitor'][i]],
+                    self._team_idx[self._data['Home'][i]]
+                ] += self._data['HomePTS'][i] - self._data['VisitorPTS'][i]
+
+        for i in xrange(self._n_teams):
+            self._transition_matrix[i, :] /= np.sum(self._transition_matrix[i, :])
+
+        _, v = np.linalg.eig(self._transition_matrix.T)
+
+        self._ratings = np.abs(
+            np.real(v[:, 0] / np.sum(v[:, 0].flatten()))
+        ).flatten()
+
+
+    @property
+    def ratings(self):
+        return self._ratings
+
+
+    def predict(self, team1, team2):
+        t1 = self._team_idx[team1]
+        t2 = self._team_idx[team2]
+
+        return self._ratings[t1] / (self._ratings[t1] + self._ratings[t2])
