@@ -26,8 +26,10 @@ class RatingAlgorithm(object):
     def test_accuracy(self, data):
         n_errors = 0
         for i in xrange(len(data)):
-            if (data['HomePTS'][i] >= data['VisitorPTS'][i]
-                and self.predict(data['Home'][i], data['Visitor'][i]) < 0.5):
+            if ((data['HomePTS'][i] > data['VisitorPTS'][i]
+                and self.predict(data['Home'][i], data['Visitor'][i]) < 0.5)
+                or (data['HomePTS'][i] < data['VisitorPTS'][i]
+                and self.predict(data['Home'][i], data['Visitor'][i]) > 0.5)):
                 n_errors += 1
         return 1 - n_errors / len(data)
 
@@ -43,6 +45,41 @@ class RatingAlgorithm(object):
     @property
     def ratings(self):
         raise NotImplementedError()
+        
+        
+class RandomRating(RatingAlgorithm):
+    """Assign random ratings for baseline analysis."""
+
+    def __init__(self):
+        pass
+
+    def fit(self, data, teams=None):
+
+        if teams is None:
+            teams = get_teams(data)
+
+        self._team_names = teams
+        self._data = data
+        self._n_teams = len(teams)
+
+        self._team_idx = {}
+        for i in xrange(len(teams)):
+            self._team_idx[teams[i]] = i
+
+
+        self._ratings = np.random.randn(self._n_teams)
+
+    @property
+    def ratings(self):
+        return self._ratings
+
+
+    def predict(self, team1, team2):
+        r1 = self._ratings[self._team_idx[team1]]
+        r2 = self._ratings[self._team_idx[team2]]
+        r_diff = r1 - r2
+
+        return 1 / (1 + np.exp(-r_diff))
 
 
 class MasseyMethod(RatingAlgorithm):
